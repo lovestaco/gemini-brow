@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chrome Prompt API Playground</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #111;
+      color: #ddd;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.6rem; color: #fff; }
+    .subtitle { font-size: 0.9rem; color: #666; margin-top: 4px; margin-bottom: 24px; }
+    h3 { font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      margin-bottom: 24px;
+      font-size: 0.85rem;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .dot.ready { background: #22c55e; }
+    .dot.busy { background: #f59e0b; animation: blink 1s infinite; }
+    .dot.error { background: #ef4444; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .card.full { grid-column: 1 / -1; }
+
+    label {
+      display: block;
+      font-size: 0.78rem;
+      color: #777;
+      margin-bottom: 5px;
+      margin-top: 10px;
+    }
+    label:first-child { margin-top: 0; }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      background: #111;
+      border: 1px solid #2a2a2a;
+      color: #ccc;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    textarea { min-height: 72px; }
+    textarea:focus, input[type="text"]:focus { outline: none; border-color: #444; }
+
+    input[type="file"] { font-size: 0.8rem; color: #888; margin-top: 8px; }
+
+    button {
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 0.83rem;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover:not(:disabled) { opacity: 0.85; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-secondary { background: #2a2a2a; color: #ccc; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-stop { background: #78350f; color: #fcd34d; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+    .output {
+      margin-top: 10px;
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.82rem;
+      min-height: 48px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #999;
+      font-family: 'Courier New', monospace;
+      line-height: 1.5;
+    }
+    .output.ok { color: #86efac; }
+    .output.err { color: #fca5a5; }
+
+    .context-bar {
+      height: 5px;
+      background: #222;
+      border-radius: 3px;
+      margin: 8px 0 4px;
+      overflow: hidden;
+    }
+    .context-fill {
+      height: 100%;
+      background: #2563eb;
+      border-radius: 3px;
+      transition: width 0.4s;
+    }
+    .context-meta { font-size: 0.75rem; color: #555; }
+
+    details > summary {
+      cursor: pointer;
+      font-size: 0.78rem;
+      color: #555;
+      margin-top: 10px;
+      user-select: none;
+    }
+    details[open] > summary { color: #888; }
+
+    .range-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    input[type="range"] { flex: 1; accent-color: #2563eb; }
+    .range-val { font-size: 0.8rem; color: #888; min-width: 30px; text-align: right; }
+
+    .tag {
+      display: inline-block;
+      padding: 1px 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      color: #64748b;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    .info {
+      font-size: 0.78rem;
+      color: #555;
+      line-height: 1.5;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.73rem;
+      background: #451a03;
+      color: #fbbf24;
+      margin-top: 6px;
+    }
+
+    canvas {
+      max-width: 100%;
+      border-radius: 6px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #222;
+      margin: 14px 0;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Chrome Prompt API Playground</h1>
+<p class="subtitle">Gemini Nano — on-device, zero cost &nbsp;·&nbsp; Chrome 138+</p>
+
+<div class="status-bar">
+  <div class="dot" id="dot"></div>
+  <span id="statusText">Checking availability…</span>
+  <span style="margin-left:auto;font-size:0.75rem;color:#444">session: <span id="sessionLabel">none</span></span>
+</div>
+
+<div class="grid">
+
+  <!-- ── Session Setup ───────────────────────── -->
+  <div class="card">
+    <h3>Session Setup</h3>
+
+    <label>System prompt</label>
+    <textarea id="systemPrompt" rows="3">You are a helpful and friendly assistant.</textarea>
+
+    <details>
+      <summary>Advanced parameters <span class="tag">extensions only</span></summary>
+      <label style="margin-top:10px;">Temperature</label>
+      <div class="range-row">
+        <input type="range" id="tempRange" min="0" max="2" step="0.05" value="1">
+        <span class="range-val" id="tempVal">1.00</span>
+      </div>
+      <label>Top-K</label>
+      <div class="range-row">
+        <input type="range" id="topkRange" min="1" max="128" step="1" value="3">
+        <span class="range-val" id="topkVal">3</span>
+      </div>
+    </details>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="createBtn">Create Session</button>
+      <button class="btn-danger" id="destroyBtn" disabled>Destroy</button>
+      <button class="btn-secondary" id="cloneBtn" disabled>Clone</button>
+    </div>
+
+    <label>Model params <span class="tag">extensions only</span></label>
+    <div class="output" id="paramsOut" style="min-height:36px;font-size:0.75rem;color:#444;">—</div>
+  </div>
+
+  <!-- ── Context Window ─────────────────────── -->
+  <div class="card">
+    <h3>Context Window</h3>
+    <div class="context-meta" id="ctxInfo">No session active</div>
+    <div class="context-bar"><div class="context-fill" id="ctxFill" style="width:0%"></div></div>
+    <div class="context-meta"><span id="ctxUsed">0</span> / <span id="ctxTotal">0</span> tokens</div>
+    <div class="badge" id="overflowBadge" style="display:none">⚠ Context overflow — oldest turns dropped</div>
+
+    <hr class="divider">
+
+    <h3>Cloned Session</h3>
+    <p class="info">After cloning, the fork is independent — it won't see new prompts from the original.</p>
+    <button class="btn-secondary" id="clonePromptBtn" disabled>Ask clone: summarize so far</button>
+    <div class="output" id="cloneOut" style="min-height:36px;">Clone a session first.</div>
+  </div>
+
+  <!-- ── Basic Prompt ───────────────────────── -->
+  <div class="card full">
+    <h3>Prompt — request-based <code style="font-size:0.75rem;color:#555">session.prompt()</code></h3>
+    <label>Your message</label>
+    <textarea id="promptInput">Write me a short haiku about coffee.</textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="promptBtn" disabled>Send</button>
+      <button class="btn-stop" id="promptStopBtn" disabled>Stop</button>
+    </div>
+    <div class="output" id="promptOut">Output will appear here…</div>
+  </div>
+
+  <!-- ── Streaming Prompt ───────────────────── -->
+  <div class="card full">
+    <h3>Streaming Prompt <code style="font-size:0.75rem;color:#555">session.promptStreaming()</code></h3>
+    <label>Your message</label>
+    <textarea id="streamInput">Explain how a browser renders a web page, step by step.</textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="streamBtn" disabled>Stream</button>
+      <button class="btn-stop" id="streamStopBtn" disabled>Stop</button>
+    </div>
+    <div class="output" id="streamOut">Streamed output will appear here…</div>
+  </div>
+
+  <!-- ── Structured Output ──────────────────── -->
+  <div class="card">
+    <h3>Structured Output — JSON Schema <code style="font-size:0.75rem;color:#555">responseConstraint</code></h3>
+    <p class="info">The model is constrained to reply with valid JSON matching the schema.</p>
+    <label>JSON Schema</label>
+    <textarea id="schemaInput" rows="8">{
+  "type": "object",
+  "properties": {
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive","negative","neutral"]
+    },
+    "score": { "type": "number", "minimum": 0, "maximum": 10 },
+    "summary": { "type": "string" }
+  },
+  "required": ["sentiment","score","summary"]
+}</textarea>
+    <label>Text to analyze</label>
+    <textarea id="structuredInput" rows="3">I absolutely loved the new restaurant downtown! The pasta was incredible and the service was top notch.</textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="structuredBtn" disabled>Analyze</button>
+    </div>
+    <div class="output" id="structuredOut"></div>
+  </div>
+
+  <!-- ── Boolean Check ──────────────────────── -->
+  <div class="card">
+    <h3>Boolean Classification <code style="font-size:0.75rem;color:#555">{ "type": "boolean" }</code></h3>
+    <p class="info">Use a boolean JSON schema for fast yes/no classification.</p>
+    <label>Statement</label>
+    <textarea id="boolInput" rows="3">I just threw a pot on the wheel and it collapsed, but I'll try again with some reclaim clay.</textarea>
+    <label>Question</label>
+    <input type="text" id="boolQuestion" value="Is this post about pottery?">
+    <div class="btn-row">
+      <button class="btn-primary" id="boolBtn" disabled>Classify</button>
+    </div>
+    <div class="output" id="boolOut"></div>
+  </div>
+
+  <!-- ── Append ─────────────────────────────── -->
+  <div class="card">
+    <h3>Append Messages <code style="font-size:0.75rem;color:#555">session.append()</code></h3>
+    <p class="info">Pre-load context into the session before asking a question. Useful for pre-processing heavy inputs (e.g. images) while the user types.</p>
+    <label>Context to append (role: user)</label>
+    <textarea id="appendCtx" rows="3">The capital of France is Paris. It is famous for the Eiffel Tower, haute cuisine, and fashion.</textarea>
+    <div class="btn-row">
+      <button class="btn-secondary" id="appendBtn" disabled>Append</button>
+    </div>
+    <label>Follow-up question</label>
+    <textarea id="appendQ" rows="2">What city did I just tell you about, and what is it known for?</textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="appendPromptBtn" disabled>Prompt after append</button>
+    </div>
+    <div class="output" id="appendOut"></div>
+  </div>
+
+  <!-- ── Response Prefix ────────────────────── -->
+  <div class="card">
+    <h3>Response Prefix <code style="font-size:0.75rem;color:#555">prefix: true</code></h3>
+    <p class="info">Prefill the start of the assistant turn to force a specific output format.</p>
+    <label>User message</label>
+    <textarea id="prefixUserInput" rows="2">Create a JSON object for a dragon character in a fantasy RPG.</textarea>
+    <label>Assistant prefix <span class="tag">prefilled</span></label>
+    <input type="text" id="prefixValue" value='{"name": "'>
+    <div class="btn-row">
+      <button class="btn-primary" id="prefixBtn" disabled>Send with prefix</button>
+    </div>
+    <div class="output" id="prefixOut"></div>
+  </div>
+
+  <!-- ── Image Input ────────────────────────── -->
+  <div class="card">
+    <h3>Image Input <code style="font-size:0.75rem;color:#555">type: "image"</code></h3>
+    <p class="info">Upload an image and ask the model about it. Requires GPU support per the docs.</p>
+    <label>Image file</label>
+    <input type="file" id="imageFile" accept="image/*">
+    <canvas id="imagePreview"></canvas>
+    <label>Question about the image</label>
+    <textarea id="imageQ" rows="2">Describe what you see in this image in detail.</textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="imageBtn" disabled>Analyze Image</button>
+    </div>
+    <div class="output" id="imageOut"></div>
+  </div>
+
+</div>
+
+<script>
+  let session = null;
+  let clonedSession = null;
+  let promptCtrl = null;
+  let streamCtrl = null;
+
+  // ── helpers ────────────────────────────────────────────────
+
+  const $ = id => document.getElementById(id);
+
+  function setDot(state) { // 'ready' | 'busy' | 'error' | ''
+    $('dot').className = 'dot ' + state;
+  }
+  function setStatus(state, msg) {
+    setDot(state);
+    $('statusText').textContent = msg;
+  }
+  function setSessionLabel(t) { $('sessionLabel').textContent = t; }
+
+  const SESSION_BTNS = ['promptBtn','streamBtn','structuredBtn','boolBtn',
+                        'appendBtn','appendPromptBtn','prefixBtn','destroyBtn','cloneBtn'];
+
+  function enableSession(on) {
+    SESSION_BTNS.forEach(id => $(id).disabled = !on);
+  }
+
+  function updateCtx() {
+    if (!session) return;
+    const used = session.contextUsage ?? 0;
+    const total = session.contextWindow ?? 1;
+    const pct = Math.min(100, (used / total) * 100);
+    $('ctxUsed').textContent = used;
+    $('ctxTotal').textContent = total;
+    $('ctxFill').style.width = pct.toFixed(1) + '%';
+    $('ctxInfo').textContent = pct.toFixed(1) + '% used';
+  }
+
+  // ── sliders ────────────────────────────────────────────────
+
+  $('tempRange').oninput = e =>
+    $('tempVal').textContent = parseFloat(e.target.value).toFixed(2);
+  $('topkRange').oninput = e =>
+    $('topkVal').textContent = e.target.value;
+
+  // ── init ───────────────────────────────────────────────────
+
+  async function init() {
+    if (!window.LanguageModel) {
+      setStatus('error', 'LanguageModel API not found — use Chrome 138+ with built-in AI enabled');
+      return;
+    }
+
+    try {
+      const avail = await LanguageModel.availability({
+        expectedInputs:  [{ type: 'text', languages: ['en'] }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      });
+
+      const labels = {
+        available:    'ready',
+        readily:      'ready',
+        downloadable: 'model not downloaded yet',
+        downloading:  'downloading model…',
+        unavailable:  'unavailable on this device',
+        no:           'unavailable on this device',
+      };
+      const dots = {
+        available: 'ready', readily: 'ready',
+        downloadable: 'busy', downloading: 'busy',
+        unavailable: 'error', no: 'error',
+      };
+      setStatus(dots[avail] ?? 'busy', `Gemini Nano: ${labels[avail] ?? avail} (raw: "${avail}")`);
+    } catch (e) {
+      setStatus('error', 'availability() failed: ' + e.message);
+    }
+
+    // params (extensions only — silently ignore in web context)
+    try {
+      const p = await LanguageModel.params();
+      if (p) {
+        $('paramsOut').textContent = JSON.stringify(p, null, 2);
+        $('tempRange').max   = p.maxTemperature;
+        $('tempRange').value = p.defaultTemperature;
+        $('tempVal').textContent = p.defaultTemperature.toFixed(2);
+        $('topkRange').max   = p.maxTopK;
+        $('topkRange').value = p.defaultTopK;
+        $('topkVal').textContent = p.defaultTopK;
+      }
+    } catch {
+      $('paramsOut').textContent = 'params() not available in web-page context (extensions only)';
+    }
+  }
+
+  // ── create session ─────────────────────────────────────────
+
+  $('createBtn').onclick = async () => {
+    const btn = $('createBtn');
+    btn.disabled = true;
+    btn.textContent = 'Creating…';
+    setStatus('busy', 'Creating session…');
+
+    try {
+      // Pre-check: confirm availability before attempting create()
+      const preCheck = await LanguageModel.availability({
+        expectedInputs:  [{ type: 'text', languages: ['en'] }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      });
+      const notReady = ['unavailable', 'no'];
+      if (notReady.includes(preCheck)) {
+        setStatus('error', `Cannot create session — availability() returned "${preCheck}". See setup tips below.`);
+        $('paramsOut').textContent =
+          `availability() = "${preCheck}"\n\n` +
+          `To enable Gemini Nano in Chrome:\n` +
+          `1. Go to chrome://flags/#optimization-guide-on-device-model\n` +
+          `   → Set to "Enabled BypassPerfRequirement"\n` +
+          `2. Go to chrome://flags/#prompt-api-for-gemini-nano\n` +
+          `   → Set to "Enabled"\n` +
+          `3. Relaunch Chrome\n` +
+          `4. Check model download status at chrome://on-device-internals`;
+        return;
+      }
+
+      const systemPrompt = $('systemPrompt').value.trim();
+      const opts = {
+        monitor(m) {
+          m.addEventListener('downloadprogress', e =>
+            setStatus('busy', `Downloading model: ${(e.loaded * 100).toFixed(0)}%`)
+          );
+        },
+        expectedInputs:  [{ type: 'text', languages: ['en'] }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      };
+
+      if (systemPrompt) {
+        opts.initialPrompts = [{ role: 'system', content: systemPrompt }];
+      }
+
+      // apply temperature / topK only when params() is available (extension context)
+      try {
+        const p = await LanguageModel.params();
+        if (p) {
+          opts.temperature = parseFloat($('tempRange').value);
+          opts.topK        = parseInt($('topkRange').value);
+        }
+      } catch {}
+
+      if (session) session.destroy();
+      session = await LanguageModel.create(opts);
+
+      session.addEventListener('contextoverflow', () => {
+        $('overflowBadge').style.display = 'inline-block';
+      });
+
+      enableSession(true);
+      setSessionLabel('active');
+      updateCtx();
+      setStatus('ready', 'Session ready');
+    } catch (e) {
+      setStatus('error', 'create() failed: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Create Session';
+    }
+  };
+
+  // ── destroy ────────────────────────────────────────────────
+
+  $('destroyBtn').onclick = () => {
+    if (session) { session.destroy(); session = null; }
+    enableSession(false);
+    $('createBtn').disabled = false;
+    setSessionLabel('destroyed');
+    $('ctxFill').style.width = '0%';
+    $('ctxInfo').textContent = 'No session active';
+    setStatus('', 'Session destroyed');
+  };
+
+  // ── clone ──────────────────────────────────────────────────
+
+  $('cloneBtn').onclick = async () => {
+    if (!session) return;
+    try {
+      clonedSession = await session.clone();
+      $('cloneOut').textContent = 'Clone created. It shares context up to this moment.';
+      $('clonePromptBtn').disabled = false;
+    } catch (e) {
+      $('cloneOut').textContent = 'Clone failed: ' + e.message;
+    }
+  };
+
+  $('clonePromptBtn').onclick = async () => {
+    if (!clonedSession) return;
+    $('clonePromptBtn').disabled = true;
+    $('cloneOut').textContent = 'Asking clone…';
+    try {
+      const r = await clonedSession.prompt('Summarize our conversation so far in one sentence.');
+      $('cloneOut').textContent = r;
+    } catch (e) {
+      $('cloneOut').textContent = 'Error: ' + e.message;
+    }
+    $('clonePromptBtn').disabled = false;
+  };
+
+  // ── basic prompt ───────────────────────────────────────────
+
+  $('promptBtn').onclick = async () => {
+    if (!session) return;
+    promptCtrl = new AbortController();
+    $('promptBtn').disabled   = true;
+    $('promptStopBtn').disabled = false;
+    $('promptOut').textContent  = 'Thinking…';
+    $('promptOut').className    = 'output';
+
+    try {
+      const r = await session.prompt($('promptInput').value.trim(), { signal: promptCtrl.signal });
+      $('promptOut').textContent = r;
+      $('promptOut').className   = 'output ok';
+    } catch (e) {
+      $('promptOut').textContent = e.name === 'AbortError' ? '[Stopped]' : 'Error: ' + e.message;
+      $('promptOut').className   = 'output err';
+    } finally {
+      $('promptBtn').disabled    = false;
+      $('promptStopBtn').disabled = true;
+      promptCtrl = null;
+      updateCtx();
+    }
+  };
+  $('promptStopBtn').onclick = () => { if (promptCtrl) promptCtrl.abort(); };
+
+  // ── streaming prompt ───────────────────────────────────────
+
+  $('streamBtn').onclick = async () => {
+    if (!session) return;
+    streamCtrl = new AbortController();
+    $('streamBtn').disabled    = true;
+    $('streamStopBtn').disabled = false;
+    $('streamOut').textContent  = '';
+    $('streamOut').className    = 'output';
+
+    try {
+      const stream = session.promptStreaming($('streamInput').value.trim(), { signal: streamCtrl.signal });
+      let accumulated = '';
+      for await (const chunk of stream) {
+        accumulated += chunk;
+        $('streamOut').textContent = accumulated;
+      }
+      $('streamOut').className = 'output ok';
+    } catch (e) {
+      $('streamOut').textContent += e.name === 'AbortError' ? '\n[Stopped]' : '\nError: ' + e.message;
+      $('streamOut').className = 'output err';
+    } finally {
+      $('streamBtn').disabled    = false;
+      $('streamStopBtn').disabled = true;
+      streamCtrl = null;
+      updateCtx();
+    }
+  };
+  $('streamStopBtn').onclick = () => { if (streamCtrl) streamCtrl.abort(); };
+
+  // ── structured output ──────────────────────────────────────
+
+  $('structuredBtn').onclick = async () => {
+    if (!session) return;
+    $('structuredBtn').disabled = true;
+    $('structuredOut').textContent = 'Analyzing…';
+    $('structuredOut').className   = 'output';
+
+    try {
+      const schema = JSON.parse($('schemaInput').value);
+      const text   = $('structuredInput').value.trim();
+      const raw = await session.prompt(
+        `Analyze the sentiment of this text:\n\n"${text}"`,
+        { responseConstraint: schema }
+      );
+      $('structuredOut').textContent = JSON.stringify(JSON.parse(raw), null, 2);
+      $('structuredOut').className   = 'output ok';
+    } catch (e) {
+      $('structuredOut').textContent = 'Error: ' + e.message;
+      $('structuredOut').className   = 'output err';
+    } finally {
+      $('structuredBtn').disabled = false;
+      updateCtx();
+    }
+  };
+
+  // ── boolean classification ─────────────────────────────────
+
+  $('boolBtn').onclick = async () => {
+    if (!session) return;
+    $('boolBtn').disabled  = true;
+    $('boolOut').textContent = 'Classifying…';
+    $('boolOut').className   = 'output';
+
+    try {
+      const q    = $('boolQuestion').value.trim();
+      const text = $('boolInput').value.trim();
+      const raw  = await session.prompt(
+        `${q}\n\n"${text}"`,
+        { responseConstraint: { type: 'boolean' } }
+      );
+      const val = JSON.parse(raw);
+      $('boolOut').textContent = val ? '✓  true' : '✗  false';
+      $('boolOut').className   = val ? 'output ok' : 'output err';
+    } catch (e) {
+      $('boolOut').textContent = 'Error: ' + e.message;
+      $('boolOut').className   = 'output err';
+    } finally {
+      $('boolBtn').disabled = false;
+      updateCtx();
+    }
+  };
+
+  // ── append ─────────────────────────────────────────────────
+
+  $('appendBtn').onclick = async () => {
+    if (!session) return;
+    $('appendBtn').disabled  = true;
+    $('appendOut').textContent = 'Appending…';
+
+    try {
+      await session.append([{ role: 'user', content: $('appendCtx').value.trim() }]);
+      $('appendOut').textContent = 'Context appended. Now send your follow-up question.';
+      updateCtx();
+    } catch (e) {
+      $('appendOut').textContent = 'Error: ' + e.message;
+    } finally {
+      $('appendBtn').disabled = false;
+    }
+  };
+
+  $('appendPromptBtn').onclick = async () => {
+    if (!session) return;
+    $('appendPromptBtn').disabled = true;
+    $('appendOut').textContent    = 'Thinking…';
+    $('appendOut').className      = 'output';
+
+    try {
+      const r = await session.prompt($('appendQ').value.trim());
+      $('appendOut').textContent = r;
+      $('appendOut').className   = 'output ok';
+    } catch (e) {
+      $('appendOut').textContent = 'Error: ' + e.message;
+      $('appendOut').className   = 'output err';
+    } finally {
+      $('appendPromptBtn').disabled = false;
+      updateCtx();
+    }
+  };
+
+  // ── response prefix ────────────────────────────────────────
+
+  $('prefixBtn').onclick = async () => {
+    if (!session) return;
+    $('prefixBtn').disabled  = true;
+    $('prefixOut').textContent = 'Generating…';
+    $('prefixOut').className   = 'output';
+
+    try {
+      const prefix = $('prefixValue').value;
+      const r = await session.prompt([
+        { role: 'user',      content: $('prefixUserInput').value.trim() },
+        { role: 'assistant', content: prefix, prefix: true },
+      ]);
+      $('prefixOut').textContent = prefix + r;
+      $('prefixOut').className   = 'output ok';
+    } catch (e) {
+      $('prefixOut').textContent = 'Error: ' + e.message;
+      $('prefixOut').className   = 'output err';
+    } finally {
+      $('prefixBtn').disabled = false;
+      updateCtx();
+    }
+  };
+
+  // ── image input ────────────────────────────────────────────
+  // Image input needs its own session with { type: 'image' } in expectedInputs.
+  // This requires GPU — checked via availability() before creating the session.
+
+  let imageBlob = null;
+  let imageSession = null;
+
+  $('imageFile').onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    imageBlob = file;
+
+    const canvas = $('imagePreview');
+    const ctx    = canvas.getContext('2d');
+    const img    = new Image();
+    img.onload = () => {
+      const scale  = Math.min(1, 380 / img.width);
+      canvas.width  = img.width  * scale;
+      canvas.height = img.height * scale;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.style.display = 'block';
+    };
+    img.src = URL.createObjectURL(file);
+    $('imageBtn').disabled = false;
+  };
+
+  $('imageBtn').onclick = async () => {
+    if (!imageBlob) { $('imageOut').textContent = 'Upload an image first.'; return; }
+
+    $('imageBtn').disabled    = true;
+    $('imageOut').className   = 'output';
+    $('imageOut').textContent = 'Checking image-input availability…';
+
+    try {
+      // Image input requires GPU — check separately from the text session
+      const imageAvail = await LanguageModel.availability({
+        expectedInputs:  [{ type: 'text', languages: ['en'] }, { type: 'image' }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      });
+
+      if (imageAvail === 'unavailable') {
+        $('imageOut').textContent = 'Image input unavailable on this device (GPU with >4 GB VRAM required).';
+        $('imageOut').className   = 'output err';
+        return;
+      }
+
+      $('imageOut').textContent = 'Creating image session…';
+      if (imageSession) { imageSession.destroy(); imageSession = null; }
+
+      imageSession = await LanguageModel.create({
+        expectedInputs:  [{ type: 'text', languages: ['en'] }, { type: 'image' }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      });
+
+      $('imageOut').textContent = 'Analyzing image…';
+      const r = await imageSession.prompt([{
+        role: 'user',
+        content: [
+          { type: 'text',  value: $('imageQ').value.trim() },
+          { type: 'image', value: imageBlob },
+        ],
+      }]);
+      $('imageOut').textContent = r;
+      $('imageOut').className   = 'output ok';
+    } catch (e) {
+      $('imageOut').textContent = 'Error: ' + e.message;
+      $('imageOut').className   = 'output err';
+    } finally {
+      $('imageBtn').disabled = false;
+    }
+  };
+
+  // ── start ──────────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
